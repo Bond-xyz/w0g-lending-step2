@@ -1,0 +1,81 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>0G — W0G Lending Step 2 (Execute)</title>
+<style>
+  :root{color-scheme:dark}
+  body{font-family:system-ui,-apple-system,Segoe UI,Roboto,sans-serif;background:#0b0e14;color:#e7ecf3;margin:0;min-height:100vh;display:flex;align-items:center;justify-content:center;padding:24px}
+  .card{background:#121826;border:1px solid #24304a;border-radius:16px;padding:32px;max-width:640px;width:100%}
+  h1{font-size:22px;margin:0 0 8px}
+  .sub{color:#8b98ad;font-size:14px;line-height:1.5;margin-bottom:20px}
+  .row{display:flex;justify-content:space-between;font-size:13px;padding:8px 0;border-bottom:1px solid #1d2740;color:#aeb9cc}
+  .row b{color:#e7ecf3;font-weight:600}
+  button{width:100%;margin-top:20px;padding:16px;font-size:17px;font-weight:700;border:0;border-radius:12px;cursor:pointer}
+  #connect{background:#2b6cff;color:#fff}
+  #send{background:#19b26b;color:#06210f}
+  button:disabled{background:#26314b;color:#6b7894;cursor:not-allowed}
+  .ok{color:#2fe08a;font-size:13px}
+  .warn{color:#ffb020;font-size:13px}
+  .err{color:#ff5d5d;font-size:13px;word-break:break-all}
+  #status{margin-top:16px;font-size:14px;line-height:1.6}
+  a{color:#5ea0ff}
+  code{font-size:12px;color:#9fb4d8;word-break:break-all}
+</style>
+</head>
+<body>
+<div class="card">
+  <h1>W0G Lending — Timelock Step 2</h1>
+  <div class="sub">
+    This sends the pre-approved <b>executeBatch</b> transaction on the 0G mainnet timelock
+    (operation <code>0xd8d2…1e14</code>, scheduled Oct 6, salt …0002). No inputs needed —
+    the transaction is fully prepared and re-verified before sending.
+  </div>
+  <div class="row"><span>Chain</span><b>0G Mainnet (16661)</b></div>
+  <div class="row"><span>Timelock</span><b style="font-family:monospace;font-size:11px">0x005d73B1…a53d</b></div>
+  <div class="row"><span>Required wallet</span><b style="font-family:monospace;font-size:11px">0x76cB…281E</b></div>
+  <button id="connect">Connect finance wallet</button>
+  <button id="send" disabled>Send Step 2 transaction</button>
+  <div id="status"></div>
+</div>
+<script>
+const CHAIN_ID = "0x412d"; // 16661
+const RPC = "https://evmrpc.0g.ai";
+const TIMELOCK = "0x005d73B1B62775cE76E86d00162f29Ce8145a53d";
+const ALLOWED = "0x76cb4faf35708debadcb8eacffc4c050bf2c281e";
+const OP_ID = "0xd8d200f37f8f0e9025a30c25d52c68b5a2fe0b2aff52a5dcc89a94f0cfd11e14";
+const CALLDATA = "0xe38335e500000000000000000000000000000000000000000000000000000000000000a000000000000000000000000000000000000000000000000000000000000001000000000000000000000000000000000000000000000000000000000000000160000000000000000000000000000000000000000000000000000000000000000057473000000000000000000000000000000000000000000000000000000000020000000000000000000000000000000000000000000000000000000000000002000000000000000000000000d9cec274c73e3207c4f5d1ac26c3c8c7ac50d3cb0000000000000000000000009579cd27c44e87924735e8345c6c091a72d0b21e0000000000000000000000000000000000000000000000000000000000000002000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000002000000000000000000000000000000000000000000000000000000000000004000000000000000000000000000000000000000000000000000000000000000c0000000000000000000000000000000000000000000000000000000000000004487ef019a0000000000000000000000001cd0690ff9a693f5ef2dd976660a8dafc81a109c000000000000000000000000efe76d1c11f267d8735d240f53317f238d8c77c90000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000001442928b9a60000000000000000000000001cd0690ff9a693f5ef2dd976660a8dafc81a109c000000000000000000000000000000000000000000000000000000000000177000000000000000000000000000000000000000000000000000000000000004b00000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000100000000000000000000000000000000000000000000000000000000000004b00000000000000000000000000000000000000000000000000000000000000003000000000000000000000000000000000000000000000000000000000000177000000000000000000000000000000000000000000000000000000000000001f4000000000000000000000000000000000000000000000000000000000000000100000000000000000000000000000000000000000000000000000000";
+const st = (cls,msg)=>{document.getElementById("status").innerHTML=`<span class="${cls}">${msg}</span>`};
+async function rpc(method,params){
+  const r=await fetch(RPC,{method:"POST",headers:{"content-type":"application/json"},body:JSON.stringify({jsonrpc:"2.0",id:1,method,params})});
+  const j=await r.json(); if(j.error) throw new Error(j.error.message||JSON.stringify(j.error)); return j.result;
+}
+let acct=null;
+document.getElementById("connect").onclick=async()=>{
+  const s=document.getElementById("status");
+  if(!window.ethereum){st("err","No injected wallet found. Open this page in the browser where the finance wallet extension is installed.");return}
+  try{
+    const accts=await ethereum.request({method:"eth_requestAccounts"});
+    acct=(accts[0]||"").toLowerCase();
+    try{await ethereum.request({method:"wallet_switchEthereumChain",params:[{chainId:CHAIN_ID}]})}
+    catch(e){ if(e.code===4902){await ethereum.request({method:"wallet_addEthereumChain",params:[{chainId:CHAIN_ID,chainName:"0G Mainnet",nativeCurrency:{name:"0G",symbol:"0G",decimals:18},rpcUrls:[RPC],blockExplorerUrls:["https://chainscan.0g.ai"]}]})} else throw e }
+    if(acct!==ALLOWED){st("err",`Wrong wallet: <code>${acct}</code>. Please switch to the finance wallet <code>${ALLOWED}</code> and reconnect.`);return}
+    st("ok","Wallet verified — checking the timelock state…");
+    const ready=await rpc("eth_call",[{to:TIMELOCK,data:"0x13bc9f20"+OP_ID.slice(2)},"latest"]); // isOperationReady(bytes32)
+    if(!ready.endsWith("1")){st("err","Operation is not READY on-chain. Contact the team before proceeding.");return}
+    await rpc("eth_call",[{to:TIMELOCK,data:CALLDATA,from:acct},"latest"]); // re-simulate executeBatch
+    document.getElementById("send").disabled=false;
+    st("ok","All checks passed — operation READY, simulation succeeded. You can send Step 2.");
+  }catch(e){st("err",e.message||String(e))}
+};
+document.getElementById("send").onclick=async()=>{
+  try{
+    st("ok","Confirm the transaction in your wallet…");
+    const hash=await ethereum.request({method:"eth_sendTransaction",params:[{from:acct,to:TIMELOCK,data:CALLDATA,value:"0x0",gas:"0x1B8A80"}]});
+    st("ok",`Sent. Tx: <a href="https://chainscan.0g.ai/tx/${hash}" target="_blank"><code>${hash}</code></a>`);
+  }catch(e){st("err",e.message||String(e))}
+};
+</script>
+</body>
+</html>
